@@ -1,0 +1,5 @@
+HPUT = "<put filename>This command instructs the client to send a put request to the server in order to transfer a file from the client machine to the server machine. \n Example: put file.txt"
+HGET = "<get filename>This command instructs the client to send a get request to the server in order to retrieve a file from the server machine to the client machine. \n Example: get file.txt"
+HCHANGE = "<change OldFileName NewFileName>This command instructs the client to send a change request to the server to rename a file at the server machine."
+HHELP = "<help>This command instructs the client to send a help request to the server to get a list of the commands that the server support. \n Example: help"
+HBYE = "<bye>This command instructs the client to break the connection with the server and exit."
