@@ -64,6 +64,7 @@ class Server:
             self.BUFFER = []
             fb = c.recv(1, socket.MSG_PEEK)
             fb = self._byteToBit(fb)
+            self.logger.debug(f"new response receiver{fb}")
             process, FL = self._getOp(fb)
             if process == "000":
                 self._recvFile(c)
