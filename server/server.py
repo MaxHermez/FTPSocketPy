@@ -21,25 +21,40 @@ class server():
             self.BUFFER = []
             fb = c.recv(1, socket.MSG_PEEK)
             fb = self._byteToBit(fb)
-            proc, FL = self._getOp(fb)
-            if proc == "000":
+            process, FL = self._getOp(fb)
+            if process == "000":
                 self._recvFile(c)
                 code = self._processRequest()
                 self._sendResponse(code, c)
                 continue
-            elif proc == "001":
-                self.BUFFER = [c.recv(FL+5)]
+            elif process == "001":
+                self.BUFFER = [c.recv(FL+1)]
                 logging.info("Finished receiving request.")
                 code = self._processRequest()
                 self._sendResponse(code, c)
                 continue
+            elif process == "010":
+                part = c.recv(FL+2, socket.MSG_PEEK)
+                FLN = int(part[len(part)-1])
+                self.BUFFER = [c.recv(FL+FLN+2)]
+                logging.info("Finished receiving request.")
+                code = self._processRequest(FLN)
+                self._sendResponse(code, c)
+                continue
 
-    def _processRequest(self) -> str:
+    def _processRequest(self, FLN=None) -> str:
         operation, FL = self._getOp()
         if operation == "000":
             self._handlePut(FL)
         elif operation == "001":
             self._handleGet(FL)
+        elif operation == "010":
+            res = self._handleChange(FL, FLN)
+            if res == True:
+                return "000"
+            else:
+                return res
+        
         return operation
 
     def _getOp(self, firstByte = None) -> tuple:
@@ -72,8 +87,19 @@ class server():
         r += byteName+fileSize+fileData
         self.BUFFER = [r]
 
+    def _handleChange(self, fl, fln):
+        fileName = self._getFileName(fl)
+        newFileName = self._getNewFileName(fl, fln)
+        if not os.path.isfile(fileName):
+            return "010"
+        os.rename(fileName, newFileName)
+        return True
+
     def _getFileName(self, fl) -> str:
         return self.BUFFER[0][1:fl+1].decode('utf-8')
+
+    def _getNewFileName(self, fl, fln) -> str:
+        return self.BUFFER[0][fl+2:fln+fl+2].decode('utf-8')
 
     def _getFileSize(self, fl) -> int:
         return int.from_bytes(self.BUFFER[0][fl+1:fl+5], "big")
@@ -123,7 +149,12 @@ class server():
             c.send((0).to_bytes(1, 'big'))
         if code == "001":
             self._sendFile(c)
+        if code in ["010", "011", "101"]:
+            self._sendError("010", c)
     
+    def _sendError(self, code, c):
+        c.send(self._bitstring_to_bytes(code+"00000"))
+
     def _sendFile(self, c):
         req = self.BUFFER[0]
         chunks = self._chunker(req, 1024)

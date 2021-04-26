@@ -5,5 +5,5 @@ HHELP = "<help>This command instructs the client to send a help request to the s
 HBYE = "<bye>This command instructs the client to break the connection with the server and exit."
 ERROR_FILENAME = "Your file name is too long, it has to be 31 characters or less."
 ERROR_FILESIZE = "Your file size is too big."
-ERROR_ARG_PUT = "Incorrect number of arguments, if you're lost type (help) to see the list of instructions"
 ERROR_ARG_FILE = "Could not find the specified file. Check for typos and make sure you open the terminal from the scripts directory."
+ERROR_ARG = "Incorrect number of arguments, if you're lost type (help) to see the list of instructions"

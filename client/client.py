@@ -38,7 +38,9 @@ class client():
                 continue
             elif args[0] == "change":
                 if not self._validateArgs(args): continue
-            
+                r, opcode = self._createRequest(args[0], args[1], args[2])
+                self._sendRequest(r, opcode)
+                self._awaitResponse()
 
     def _validateArgs(self, args) -> bool:
         if args[0] == "put":
@@ -51,8 +53,14 @@ class client():
             else:
                 return True
         elif args[0] == "get":
-            if len(args) < 2:
-                self.Errors.append(constants.ERROR_ARG_PUT)
+            if len(args) != 2:
+                self.Errors.append(constants.ERROR_ARG)
+                return False
+            else:
+                return True
+        elif args[0] == "change":
+            if len(args) != 3:
+                self.Errors.append(constants.ERROR_ARG)
                 return False
             else:
                 return True
@@ -65,11 +73,11 @@ class client():
             for i in tqdm(range(n), desc="sending file"):
                 self.client.send(chunks[i])
             self.client.send(bytes(self.ChunkSize))
-        elif opcode == "001":
+        elif opcode in ["001", "010"]:
             self.client.send(req)
             logging.info('Request sent to server')
 
-    def _createRequest(self, operation, fileName) -> tuple:
+    def _createRequest(self, operation, fileName, fileNameNew=None) -> tuple:
         if operation == "put":
             opcode = "000"
             FL = self._getBitNameLen(fileName)
@@ -86,6 +94,18 @@ class client():
             r = self._bitstring_to_bytes(opcode+FL)
             r += byteName
             return r, opcode
+        if operation == "change":
+            opcode = "010"
+            FL = self._getBitNameLen(fileName)
+            byteName = bytes(fileName, 'utf-8')
+            FLN = self._getBitNameLen(fileNameNew)
+            byteNewName = bytes(fileNameNew, 'utf-8')
+            r = self._bitstring_to_bytes(opcode+FL)
+            r += byteName
+            r += self._bitstring_to_bytes(FLN)
+            r += byteNewName
+            return r, opcode
+            
 
     def _chunker(self, iterable, n, fillvalue =b'\x00') -> bytes:
         args = [iter(iterable)] * n
@@ -132,7 +152,7 @@ class client():
 
     def _awaitResponse(self) -> True:
         response = self.client.recv(1, socket.MSG_PEEK)
-        if response == (0).to_bytes(1, 'big'): # successful put response
+        if response == (0).to_bytes(1, 'big'): # success response
             response = self.client.recv(1)
             return True
         operation = self._byteToBit(response)[0:3]
