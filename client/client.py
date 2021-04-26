@@ -8,6 +8,7 @@ logging.level = logging.DEBUG
 class client():
     ChunkSize = 1024
     Errors = []
+    BUFFER = []
     def __init__(self, host, port) -> None:
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
@@ -16,7 +17,8 @@ class client():
     def _checkErrors(self) -> bool:
         if self.Errors:
             for each in self.Errors:
-                print(each)
+                logging.warning(each)
+            self.Errors = []
             return True
         else:
             return False
@@ -30,14 +32,16 @@ class client():
             args = userIn.split(" ")
             if args[0] in ["get", "put"]:
                 if not self._validateArgs(args): continue
-                r = self._createRequest(args[0], args[1])
-                self._sendRequest(r)
+                r, opcode = self._createRequest(args[0], args[1])
+                self._sendRequest(r, opcode)
                 self._awaitResponse()
                 continue
+            elif args[0] == "change":
+                if not self._validateArgs(args): continue
             
 
     def _validateArgs(self, args) -> bool:
-        if args[0] == "000":
+        if args[0] == "put":
             if len(args) < 2:
                 self.Errors.append(constants.ERROR_ARG_PUT)
                 return False
@@ -46,22 +50,26 @@ class client():
                 return False
             else:
                 return True
-        elif args[1] == "001":
+        elif args[0] == "get":
             if len(args) < 2:
                 self.Errors.append(constants.ERROR_ARG_PUT)
                 return False
             else:
                 return True
         
-    def _sendRequest(self, req) -> bool:
-        chunks = self._chunker(req, 1024)
-        n = len(chunks)
-        logging.info(f'File is chunked into {n}')
-        for i in tqdm(range(n), desc="sending file"):
-            self.client.send(chunks[i])
-        self.client.send(bytes(self.ChunkSize))
+    def _sendRequest(self, req, opcode) -> bool:
+        if opcode == "000":
+            chunks = self._chunker(req, self.ChunkSize)
+            n = len(chunks)
+            logging.info(f'File is chunked into {n}')
+            for i in tqdm(range(n), desc="sending file"):
+                self.client.send(chunks[i])
+            self.client.send(bytes(self.ChunkSize))
+        elif opcode == "001":
+            self.client.send(req)
+            logging.info('Request sent to server')
 
-    def _createRequest(self, operation, fileName) -> BitArray:
+    def _createRequest(self, operation, fileName) -> tuple:
         if operation == "put":
             opcode = "000"
             FL = self._getBitNameLen(fileName)
@@ -70,14 +78,14 @@ class client():
             fileData = self._getByteFile(fileName)
             r = self._bitstring_to_bytes(opcode+FL)
             r += byteName+fileSize+fileData
-            return r
+            return r, opcode
         if operation == "get":
             opcode = "001"
             FL = self._getBitNameLen(fileName)
             byteName = bytes(fileName, 'utf-8')
             r = self._bitstring_to_bytes(opcode+FL)
             r += byteName
-            return r
+            return r, opcode
 
     def _chunker(self, iterable, n, fillvalue =b'\x00') -> bytes:
         args = [iter(iterable)] * n
@@ -123,15 +131,18 @@ class client():
         return int(s.replace(" ", ""), 2).to_bytes((len(s) + 7) // 8, byteorder='big')
 
     def _awaitResponse(self) -> True:
-        response = self.client.recv(1)
-        if response == (0).to_bytes(1, 'big'):
+        response = self.client.recv(1, socket.MSG_PEEK)
+        if response == (0).to_bytes(1, 'big'): # successful put response
+            response = self.client.recv(1)
             return True
-        operation, fl = self._byteToBit(response)[0:3]
+        operation = self._byteToBit(response)[0:3]
         if operation == "001":
-            response += self.client.recv(1024) # get the rest of the first chunk
+            self._recvFile()
+            operation, fl = self._getOp()
             fn = self._getFileName(fl)
             fs = self._getFileSize(fl)
-            self._recvFile()
+            self._getFile(fl+5, fn)
+            return True
 
     def _getFileName(self, fl) -> str:
         return self.BUFFER[0][1:fl+1].decode('utf-8')
@@ -139,6 +150,16 @@ class client():
     def _getFileSize(self, fl) -> int:
         return int.from_bytes(self.BUFFER[0][fl+1:fl+5], "big")
     
+    def _recvFile(self):
+        finalChunk = False
+        while not finalChunk:
+            data = self.client.recv(self.ChunkSize)
+            if data == bytes(self.ChunkSize):
+                logging.info("Finished receiving response.")
+                finalChunk = True
+                continue
+            self.BUFFER.append(data)
+
     def _getFile(self, offset, fn):
         self.BUFFER[0] = self.BUFFER[0][offset:]
         file = open(fn, 'wb')
@@ -147,9 +168,15 @@ class client():
         file.close()
 
     def _getOp(self) -> tuple:
-        firstBit = self._byteToBit(self.BUFFER[0][0])
-        return (firstBit[0:3],int(firstBit[3:8], 2))
+        firstBits = self._byteToBit(self.BUFFER[0][0])
+        return (firstBits[0:3],int(firstBits[3:8], 2))
+    
+    def _byteToBit(self, b) -> str:
+        if isinstance(b, int):
+            b = b.to_bytes(1, 'big')
+        return format(int.from_bytes(b, byteorder=sys.byteorder), '#010b')[2:10]
 
+logging.basicConfig(level=logging.DEBUG)
 
 if len(sys.argv) != 3:
     print(sys.argv)
