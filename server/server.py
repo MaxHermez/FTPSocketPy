@@ -2,6 +2,12 @@ import socket, logging, sys, os, constants
 from typing import Union
 from tqdm import tqdm
 from itertools import zip_longest
+"""
+Name: Maxim Hermez
+ID: 201706267
+user: mnh34
+server script file
+"""
 
 class Server:
     ChunkSize = 1024

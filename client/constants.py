@@ -1,3 +1,9 @@
+"""
+Name: Maxim Hermez
+ID: 201706267
+user: mnh34
+client constants file
+"""
 HPUT = "<put filename>This command instructs the client to send a put request to the server in order to transfer a file from the client machine to the server machine. \n Example: put file.txt"
 HGET = "<get filename>This command instructs the client to send a get request to the server in order to retrieve a file from the server machine to the client machine. \n Example: get file.txt"
 HCHANGE = "<change OldFileName NewFileName>This command instructs the client to send a change request to the server to rename a file at the server machine."

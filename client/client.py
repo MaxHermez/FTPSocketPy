@@ -1,10 +1,15 @@
 import socket, os, sys, logging
-from bitstring import BitStream, BitArray
 from typing import Union
 from itertools import zip_longest
 from tqdm import tqdm
 import constants;
-logging.level = logging.DEBUG
+
+"""
+Name: Maxim Hermez
+ID: 201706267
+user: mnh34
+client script file
+"""
 class client():
     ChunkSize = 1024
     Errors = []
