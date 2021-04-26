@@ -7,5 +7,4 @@ ERROR_FILENAME = "Your file name is too long, it has to be 31 characters or less
 ERROR_FILESIZE = "Your file size is too big."
 ERROR_ARG_FILE = "Could not find the specified file. Check for typos and make sure you open the terminal from the scripts directory."
 ERROR_ARG = "Incorrect number of arguments, if you're lost type (help) to see the list of instructions"
-
-HELP = [HPUT, HGET, HCHANGE, HHELP, HBYE]
+HELP = "put\nget\nchange\ndetails\nbye"
