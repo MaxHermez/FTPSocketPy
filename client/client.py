@@ -9,13 +9,28 @@ class client():
     ChunkSize = 1024
     Errors = []
     BUFFER = []
-    def __init__(self, host, port, loglevel=0) -> None:
+    def __init__(self, host, port, loglevel=0):
+        """ftp client class
+
+        Args:
+            host (str): host's address
+            port (str): host's port
+            loglevel (int, optional): logging level. Defaults to 0.
+        """
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = host
         self.port = int(port)
         self.logger = self._getLogger(loglevel)
     
-    def _getLogger(self, loglevel=0) -> logging.Logger:
+    def _getLogger(self, loglevel=0):
+        """handles initializing the right level of logging
+
+        Args:
+            loglevel (int, optional): 0 for none, 1 for terminal debug, 2 terminal and file logging. Defaults to 0.
+
+        Returns:
+            logging.Logger: logger object
+        """
         logger = logging.getLogger()
         if loglevel == 0:
             return logger
@@ -27,7 +42,12 @@ class client():
         logger.addHandler(fh)
         return logger
 
-    def _checkErrors(self) -> bool:
+    def _checkErrors(self):
+        """checks if there were any errors buffered, pops and prints them
+
+        Returns:
+            bool: False if no errors are found
+        """
         if self.Errors:
             for each in self.Errors:
                 self.logger.warning(each)
@@ -36,7 +56,9 @@ class client():
         else:
             return False
 
-    def operate(self) -> None:
+    def operate(self):
+        """Entry function for the user
+        """
         self.client.connect((self.host, self.port))
         self.logger.info("Successfully conencted to the server")
         while (True):
@@ -69,7 +91,15 @@ class client():
                 self.client.close()
                 break
 
-    def _validateArgs(self, args) -> bool:
+    def _validateArgs(self, args):
+        """validate that the arguments are correct in respect to the request called
+
+        Args:
+            args (list[str]): user's input
+
+        Returns:
+            bool: validation passed
+        """
         if args[0] == "put":
             if len(args) < 2:
                 self.Errors.append(constants.ERROR_ARG_PUT)
@@ -98,7 +128,13 @@ class client():
             else:
                 return True
         
-    def _sendRequest(self, req, opcode) -> bool:
+    def _sendRequest(self, req, opcode):
+        """handles sending requests to the server after they're compiled
+
+        Args:
+            req (bytes): request to be sent
+            opcode (str): operation code
+        """
         if opcode == "000":
             chunks = self._chunker(req, self.ChunkSize)
             n = len(chunks)
@@ -110,7 +146,18 @@ class client():
             self.client.send(req)
             self.logger.info('Request sent to server')
 
-    def _createRequest(self, operation, fileName=None, fileNameNew=None) -> tuple:
+    def _createRequest(self, operation, fileName=None, fileNameNew=None):
+        """compiles the properly formatted bytes packet to send as a request based
+        on the operation requirements
+
+        Args:
+            operation (str): operation code
+            fileName (str, optional): filename. Defaults to None.
+            fileNameNew (str, optional): new filename. Defaults to None.
+
+        Returns:
+            Tuple(bytes, str): (request data, operation code)
+        """
         if operation == "put":
             opcode = "000"
             FL = self._getBitNameLen(fileName)
@@ -143,7 +190,18 @@ class client():
             r = self._bitstring_to_bytes(opcode+"00000")
             return r, opcode
             
-    def _chunker(self, iterable, n, fillvalue =b'\x00') -> bytes:
+    def _chunker(self, iterable, n, fillvalue =b'\x00'):
+        """handles chunking any bytes string into n equal chunks, if the last chunk
+        is not of size n it will be padded with the fillvalue
+
+        Args:
+            iterable (bytes): bytes string to chunk
+            n (int): chunk size
+            fillvalue (bytes, optional): padding fill value. Defaults to b'\x00'.
+
+        Returns:
+            list(bytes): list of the bytes chunks
+        """
         args = [iter(iterable)] * n
         ans = list(zip_longest(fillvalue=fillvalue, *args))
         fin = []
@@ -154,11 +212,16 @@ class client():
                 else: chunk += int(each).to_bytes(1, 'big')
             fin.append(chunk)
         return fin
-        
-    def _stringToBin(self, s) -> str:
-        return ''.join(format(ord(x), 'b') for x in s)
     
-    def _getBitNameLen(self, fn) -> Union[bool, str]:
+    def _getBitNameLen(self, fn):
+        """get the length of the string in binary
+
+        Args:
+            fn (str): filename
+
+        Returns:
+            str/bool: binary string if successful or False if error occured
+        """
         out = "{0:b}".format(len(fn))
         if len(out) < 5:
             for _ in range(5-len(out)):
@@ -170,7 +233,15 @@ class client():
         else: 
             return out
 
-    def _getByteFileSize(self, fn) -> Union[bool, bytes]:
+    def _getByteFileSize(self, fn):
+        """get a file's size in a bytes object
+
+        Args:
+            fn (str): filename/path
+
+        Returns:
+            bytes/bool: size of the file if successful or False if error occured
+        """
         fs = os.path.getsize(fn)
         if fs > 2**32:
             self.Error.append(constants.ERROR_FILESIZE)
@@ -178,20 +249,38 @@ class client():
         else: 
             return fs.to_bytes(4, 'big')
 
-    def _getByteFile(self, fn) -> str:
+    def _getByteFile(self, fn):
+        """read a file as binary
+
+        Args:
+            fn (str): filename/path
+
+        Returns:
+            bytes: file content
+        """
         with open(fn, 'rb') as file:
             data = file.read()
             return data
     
-    def _bitstring_to_bytes(self, s) -> bytes:
+    def _bitstring_to_bytes(self, s):
+        """converts a string of 1's and 0's to its bytes object
+
+        Args:
+            s (str): binary data
+
+        Returns:
+            bytes: output
+        """
         return int(s.replace(" ", ""), 2).to_bytes((len(s) + 7) // 8, byteorder='big')
 
-    def _awaitResponse(self) -> True:
+    def _awaitResponse(self):
+        """handles waiting and sorting out all the different server responses
+        """
         response = self.client.recv(1, socket.MSG_PEEK)
         if response == (0).to_bytes(1, 'big'): # success response
             response = self.client.recv(1)
             self.logger.debug(f"new response receiver{self._byteToBit(response)}")
-            return True
+            return
         operation = self._byteToBit(response)[0:3]
         self.logger.debug(f"new response receiver{self._byteToBit(response)}")
         if operation == "001":
@@ -200,20 +289,38 @@ class client():
             fn = self._getFileName(fl)
             fs = self._getFileSize(fl)
             self._getFile(fl+5, fn)
-            return True
+            return
         if operation == "110":
             operation, fl = self._getOp(response)
             self._recvFile()
             print(self.BUFFER[0][1:].decode('utf-8'))
-            return True
+            return
 
-    def _getFileName(self, fl) -> str:
+    def _getFileName(self, fl):
+        """handles getting the string filename from the request in the buffer
+
+        Args:
+            fl (int): filename length
+
+        Returns:
+            str: filename
+        """
         return self.BUFFER[0][1:fl+1].decode('utf-8')
     
-    def _getFileSize(self, fl) -> int:
+    def _getFileSize(self, fl):
+        """retrieve the file size from a request in the buffer
+
+        Args:
+            fl (int): filename length
+
+        Returns:
+            int: file size in bytes
+        """
         return int.from_bytes(self.BUFFER[0][fl+1:fl+5], "big")
     
     def _recvFile(self):
+        """recieve a file from the server, handles chunking and adding to the buffer
+        """
         self.logger.info("Began receiving response.")
         finalChunk = False
         self.BUFFER = []
@@ -226,25 +333,54 @@ class client():
             self.BUFFER.append(data)
 
     def _getFile(self, offset, fn):
+        """handles writing the file's data to the computer's memory
+
+        Args:
+            offset (int): offset of bytes where the file starts
+            fn (str): filename
+        """
         self.BUFFER[0] = self.BUFFER[0][offset:]
         file = open(fn, 'wb')
         for each in self.BUFFER:
             file.write(each)
         file.close()
 
-    def _getOp(self, firstByte=None) -> tuple:
+    def _getOp(self, firstByte=None):
+        """gets a tuple of two strings representing in binary the operation code
+        and the filename length. The byte is retrieved from the buffer if no arguments
+        are supplied
+
+        Args:
+            firstByte (bytes, optional): alternative byte to read. Defaults to None.
+
+        Returns:
+            tuple(str,str): extracted bits tuple
+        """
         if firstByte == None:
             firstByte = self._byteToBit(self.BUFFER[0][0])
         else:
             firstByte = self._byteToBit(firstByte)
         return (firstByte[0:3],int(firstByte[3:8], 2))
     
-    def _byteToBit(self, b) -> str:
+    def _byteToBit(self, b):
+        """convert a bytes string to a string of 1's and 0's
+
+        Args:
+            b (bytes): bytes to convert
+
+        Returns:
+            str: binary string
+        """
         if isinstance(b, int):
             b = b.to_bytes(1, 'big')
         return format(int.from_bytes(b, byteorder=sys.byteorder), '#010b')[2:10]
 
-    def _createDetails(self) -> str:
+    def _createDetails(self):
+        """create the local details info
+
+        Returns:
+            str: details string
+        """
         h = ""
         for each in constants.HELP:
             h += each + "\n"
