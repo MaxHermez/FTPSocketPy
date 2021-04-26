@@ -1,4 +1,4 @@
-import socket, logging, sys, os
+import socket, logging, sys, os, constants
 from typing import Union
 from tqdm import tqdm
 from itertools import zip_longest
@@ -9,14 +9,17 @@ class server():
     def __init__(self, port) -> None:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.host = "localhost"
-        print(self.host)
         self.port = int(port)
     
     def operate(self) -> None:
-        self.server.bind((self.host, self.port))
-        self.server.listen()
-        c, addr = self.server.accept()
-        logging.info(f'Connected to {addr}')
+        while True:
+            self.server.bind((self.host, self.port))
+            self.server.listen(2)
+            c, addr = self.server.accept()
+            logging.info(f'Connected to {addr}')
+            self._initiateSocket(c)
+
+    def _initiateSocket(self, c) -> None:
         while True:
             self.BUFFER = []
             fb = c.recv(1, socket.MSG_PEEK)
@@ -41,6 +44,12 @@ class server():
                 code = self._processRequest(FLN)
                 self._sendResponse(code, c)
                 continue
+            elif process == "011":
+                self.BUFFER = [c.recv(1)]
+                logging.info("Finished receiving request.")
+                code = self._processRequest()
+                self._sendResponse(code, c)
+                continue
 
     def _processRequest(self, FLN=None) -> str:
         operation, FL = self._getOp()
@@ -54,7 +63,9 @@ class server():
                 return "000"
             else:
                 return res
-        
+        elif operation == "011":
+            self._handleHelp()
+            return "110"
         return operation
 
     def _getOp(self, firstByte = None) -> tuple:
@@ -93,6 +104,20 @@ class server():
         if not os.path.isfile(fileName):
             return "010"
         os.rename(fileName, newFileName)
+        return True
+
+    def _handleHelp(self):
+        helpBytes = constants.HELP.encode('utf-8')
+        ln = "{0:b}".format(len(helpBytes))
+        print(ln)
+        if len(ln) < 5:
+            for _ in range(5-len(ln)):
+                out = "0" + out
+        opcode = "110"
+        r = self._bitstring_to_bytes(opcode+ln)
+        r += helpBytes
+        self.BUFFER = [r]
+        print(r)
         return True
 
     def _getFileName(self, fl) -> str:
@@ -147,7 +172,7 @@ class server():
     def _sendResponse(self, code, c) -> None:
         if code == "000":
             c.send((0).to_bytes(1, 'big'))
-        if code == "001":
+        if code in ["001", "110"]:
             self._sendFile(c)
         if code in ["010", "011", "101"]:
             self._sendError("010", c)
